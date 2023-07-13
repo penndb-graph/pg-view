@@ -1,4 +1,3 @@
-# pg-view
-Views for Property Graph Transformations
+# Implementing Views for Property Graph Transformations
 
-For the description of view and query workloads, [click here](docs/workload.md).
+You can find the description of datasets and workloads for views and queries [here](docs/workload.md).
