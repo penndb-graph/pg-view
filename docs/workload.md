@@ -3,43 +3,103 @@
 This document describes the graph datasets, as well as the view and query workloads used in the experiment.
 
 ## Graph Datasets
-Our experiment includes five graph datasets from a variety of domains.
+Our experiment includes five graph datasets from a variety of domains. Refer to [this page](../experiment/README.md) to download and prepare the dataset required for experiment.
 
-| Abbreviation  | Name        | Type  | $&#124; N &#124;$ | $&#124; E &#124;$ |
+| Abbreviation  | Name        | Type  | \|N\| | \|E\| |
 | ------------- |-------------| ----- | ----- | ----- |
-| SYN | Syntatic Graph |Syntatic | - | - |
-| OAG | Open Aacademic Graph | Citation | 19.25M | 23.33M | 
+| LSQB | Labelled Subgraph Query Benchmark | Syntactic (social) | 3.96M | 22.20M |
+| OAG | Open Aacademic Graph | Citation | 18.62M | 22.93M | 
 | PROV | Wikipedia Edits | Provenance | 5.15M | 2.65M | 
 | SOC | Twitter | Social | 713K | 405K | 
 | WORD | WordNet | Knowledge | 823K | 472K | 
 
 ## Workload Description
 View definitions contain:
-* Construction (input graph pattern to output graph pattern)
-* Transformed view with default rules
-* Create new nodes or edges / delete
-* Mapping variables (of nodes/edges) to a node or edge
-* Recursion on a graph pattern
+* Standard Views (GQL/G-CORE)
+* Transformation views with default rules
+  * Create new nodes or edges / delete
+  * Mapping variables (of nodes/edges) to a node or edge
   
 Queries contain:
 * Retrieve a node or edge pattern or a graph pattern
 * project tuples using the WHERE clause over properties
-* (optional) Recursion
 
 
 
 
-
-## SYN
+## LSQB
 ### Description of Dataset
+* Description: A benchmark for subgraph matching.
+* Source: [LSQB](https://github.com/ldbc/lsqb)
+
 #### Preprocessing
+
 #### Schema
+* Refer to the LSQB paper [[Link]](https://dl.acm.org/doi/pdf/10.1145/3461837.3464516).
+
 ### View definition
+```
+CREATE VIEW v1 ON g (
+  MATCH
+    (person1:Person)-[e1:KNOWS]->(person2:Person), 
+    (comment:Comment)-[e3:HASCREATOR]->(person1:Person), 
+    (comment:Comment)-[e4:REPLYOF]->(post:Post),
+    (post:Post)-[e5:HASCREATOR]->(person2:Person)
+  WHERE person1 <= 1159400
+  CONSTRUCT
+    (person1:Person)-[e1:KNOWS]->(person2:Person), 
+    (comment:Comment)-[e3:HASCREATOR]->(person1:Person), 
+    (comment:Comment)-[e4:REPLYOF]->(post:Post),
+    (post:Post)-[e5:HASCREATOR]->(person2:Person)
+
+CREATE VIEW v2 ON g (
+  MATCH
+    (person1:Person)-[e1:ISLOCATEDIN]->(city1:City),
+    (city1:City)-[e2:ISPARTOF]->(country:Country),
+    (person2:Person)-[e3:ISLOCATEDIN]->(city2:City),
+    (city2:City)-[e4:ISPARTOF]->(country:Country),
+    (person3:Person)-[e5:ISLOCATEDIN]->(city3:City),
+    (city3:City)-[e6:ISPARTOF]->(country:Country),
+    (person1:Person)-[e7:KNOWS]->(person2:Person),
+    (person2:Person)-[e9:KNOWS]->(person3:Person)
+    WHERE person1 >= 1159373 AND person1 <= 1159400
+  CONSTRUCT
+    (person1:Person)-[e1:ISLOCATEDIN]->(city1:City),
+    (city1:City)-[e2:ISPARTOF]->(country:Country),
+    (person2:Person)-[e3:ISLOCATEDIN]->(city2:City),
+    (city2:City)-[e4:ISPARTOF]->(country:Country),
+    (person3:Person)-[e5:ISLOCATEDIN]->(city3:City),
+    (city3:City)-[e6:ISPARTOF]->(country:Country),
+    (person1:Person)-[e7:KNOWS]->(person2:Person),
+    (person2:Person)-[e9:KNOWS]->(person3:Person)
+)      
+```          
+
+
 ### Query Workload
+```
+MATCH 
+  (person1:Person)-[e1:KNOWS]->(person2:Person), 
+  (comment:Comment)-[e3:HASCREATOR]->(person1:Person), 
+  (comment:Comment)-[e4:REPLYOF]->(post:Post),
+  (post:Post)-[e5:HASCREATOR]->(person2:Person)
+FROM v1 
+WHERE person1 >= 1159373 AND person1 <= 1159400
+RETURN (person1)
 
-
-
-
+MATCH 
+  (person1:Person)-[e1:ISLOCATEDIN]->(city1:City),
+  (city1:City)-[e2:ISPARTOF]->(country:Country),
+  (person2:Person)-[e3:ISLOCATEDIN]->(city2:City),
+  (city2:City)-[e4:ISPARTOF]->(country:Country),
+  (person3:Person)-[e5:ISLOCATEDIN]->(city3:City),
+  (city3:City)-[e6:ISPARTOF]->(country:Country),
+  (person1:Person)-[e7:KNOWS]->(person2:Person),
+  (person2:Person)-[e9:KNOWS]->(person3:Person)
+FROM v2 
+WHERE person1 >= 1159373 AND person1 <= 1159380
+RETURN (person1)
+```
 
 ## OAG
 ### Description of Dataset
@@ -79,33 +139,31 @@ Constraints on Edge Connectivity
 ### View definition
 For every author connected between the two graph sets (AMiner and MAG), generate a new node.
 ```
-CREATE VIEW oag_view AS (
- CONSTRUCT MAP FROM n1,n2 TO (s:OA)
- MATCH (n1:MA)-[e1:L]->(n2:AA)
- FROM oag
- WHERE n1 < 300000
-  UNION
- CONSTRUCT MAP FROM n1,n2 TO (s:OP)
- MATCH (n1:MP)-[e1:L]->(n2:AP)
- FROM oag
- WHERE n1 < 200300000
+CREATE VIEW v1 ON g WITH DEFAULT MAP (
+  MATCH (p:P)-[e1:W]->(a:A), (p:P)-[e2:P]->(v:V)
+  WHERE a > 2575 AND a < 2590
+  CONSTRUCT (a:A)-[e3:PUBVEN]->(v:V)
+  SET e3 = SK(\"kk1\", a, v)
+      UNION
+  MATCH (p:P)-[e1:W]->(a1:A), (p:P)-[e2:W]->(a2:A)
+  WHERE a1 < 10 AND a2 < 7000 AND a1 != a2
+  CONSTRUCT (a1:A)-[e3:COAUTHOR]->(a2:A)
+  SET e3 = SK(\"kk2\", a1, a2)
 )
 ```
 ### Query Workload
 Retrieve a set of nodes that were newly created in the view.
 ```
-// OAG-Q1 
-MATCH (n1:OA)
-FROM oag_view
-RETURN n1
+MATCH (a:A)-[e3:PUBVEN]->(v:V) 
+FROM v1 
+WHERE a > 2580 AND a < 2587
+RETURN (a)
 
-// OAG-Q2
-MATCH (n1:OP)
-FROM oag_view
-RETURN n1
+MATCH (a:A)-[e3:PUBVEN]->(v:V) 
+FROM v1 
+WHERE a > 2580 AND a < 2588 
+RETURN (a)
 ```
-
-
 
 
 
@@ -120,56 +178,47 @@ RETURN n1
 Node labels
  (:R) : Activity - Revision
  (:U) : Agent - User
- (:AC) : Entity - Creation 
- (:AR) : Entity - Revision
+ (:E) : Entity
 
 Edge labels
  -[:DERBY]-> : isDeriveFrom
  -[:USED]-> : used
  -[:GENBY]-> : isGeneratedBy
- -[:ASSOC]-> : isAssociatedWith
- -[:ATTR]-> : isAttributedTo
 
 Constraints on Edge Connectivity
  (:R)-[:DERBY]->(:R)
- (:R)-[:USED]->(:AR)
- (:R)-[:GENBY]->(:AC)
- (:R)-[:GENBY]->(:AR)
- (:AR)-[:ASSOC]->(:U)
- (:AR)-[:ATTR]->(:U)
+ (:R)-[:USED]->(:E)
+ (:R)-[:GENBY]->(:E)
 ```            
+
 ### View definition
-For two chosen sets of revision activities, establish an 'isAttributedTo' relationship derived from 'Used' and 'isAssociatedWith' relationships.
 ```
-CREATE VIEW prov_view AS (
- CONSTRUCT (v2)-[ne1:ATTR]->(v3)
- MATCH (v1:R)-[e1:USED]->(v2:AR), (v1)-[e2:ASSOC]->(v3:U)
- FROM prov
- WHERE v1 < 5000
-  UNION
- CONSTRUCT (v2)-[ne1:ATTR2]->(v3)
- MATCH (v1:R)-[e1:USED]->(v2:AR), (v1)-[e2:ASSOC]->(v3:U)
- FROM prov
- WHERE v1 > 5000 AND v1 < 8000
+CREATE VIEW prov1 ON g WITH DEFAULT MAP (
+  MATCH (e2:E)-[d:DERBY]->(e1:E), !(e1:E)-[k2:DERBY]->(_:E)
+  WHERE e1 < 30
+  CONSTRUCT (a:REVISION)-[u:USED]->(e1:E), (e2:E)-[g:GENBY]->(a:REVISION)
+  SET a = SK(\"rev\", d), u = SK(\"used\", d), g = SK(\"genby\", d)
+      UNION
+  MATCH (e2:E)-[d1:DERBY]->(e1:E), (e3:E)-[d2:DERBY]->(e2:E)
+  WHERE e1 > 100 AND e1 < 130
+  CONSTRUCT (e3:E)-[u:MULTIDERBY2]->(e1:E)
+  SET u = SK(\"multi\", e1, e3)
 )
 ```
+
 ### Query Workload
 For a particular set of revision entities, retrieve nodes or edges that have an 'isAttributedTo' relationship originating from them
 ```
-// PROV-Q1 
-MATCH (v1:AR)-[ne1:ATTR]->(v2:U)
-FROM prov_view
-WHERE v1 < 2000
-RETURN v1
+MATCH (a:REVISION)-[u:USED]->(e1:E), (e2:E)-[g:GENBY]->(a:REVISION)
+  FROM prov1
+  WHERE e1 < 501
+  RETURN (a)
 
-// PROV-Q2
-MATCH (v1:AR)-[ne1:ATTR2]->(v2:U)
-FROM prov_view
-WHERE v1 < 6000 AND v1 > 5000
-RETURN ne1
+MATCH (e2:E)-[u:MULTIDERBY2]->(e1:E)
+  FROM prov1
+  WHERE e1 < 500
+  RETURN (e1)
 ```
-
-
 
 
 
@@ -191,38 +240,31 @@ Constraints on Edge Connectivity
 ### View definition
 For a selected group of users, create edges that represent two and three-hop relationships originating from them. 
 ```
-CREATE VIEW soc_view AS (
- // create 2-hop friendship
- CONSTRUCT (u1)-[e3:F2]->(u3)
- MATCH (u1:U)-[e1:F]->(u2:U), (u2)-[e2:F]->(u3:U)
- FROM soc
- WHERE u1 < 50
-  UNION
- // create 3-hop friendship
- CONSTRUCT (u1)-[e4:F3]->(u4)
- MATCH (u1:U)-[e1:F]->(u2:U), (u2)-[e2:F]->(u3:U), (u3)-[e3:F]->(u4:U)
- FROM soc
- WHERE u1 < 50
+CREATE VIEW v1 ON g WITH DEFAULT MAP (
+  MATCH (p1:U)-[f1:F]->(p2:U), (p2)-[f2:F]->(p3:U), !(p1)-[f3:F]->(p3)
+  WHERE p1 != p3 AND p1 < 100000
+  CONSTRUCT (p1:U)-[r:R]->(p3:U)
+  SET r = SK(\"rr\", p1, p3)
+)
+
+CREATE VIEW v2 ON v1 WITH DEFAULT MAP (
+  MATCH (p1:U)
+  WHERE p1 < 501
+  DELETE p1
 )
 ```
 ### Query Workload
 For a specific group of users, return those who have a 2-hop or 3-hop relationship originating from them.
 ```
-// SOC-Q1 
-MATCH (u1:U)-[e1:F2]->(u2:U)
-FROM soc_view
-WHERE u1 > 0 AND u1 < 10
-RETURN u1
+MATCH (p1:U)-[r:R]->(p2:U) 
+  FROM v2
+  WHERE p1 < 5000 
+  RETURN (p2)
 
-// SOC-Q2
-MATCH (u1:U)-[e1:F3]->(u2:U)
-FROM soc_view
-WHERE u1 > 10 AND u1 < 15
-RETURN u1
+MATCH (p1:U)-[r1:R]->(p2:U), (p2)-[r2:R]->(p3:U), (p1)-[r3:F]->(p3)
+  FROM v2 
+  WHERE p1 < 30000 AND p1 != p3 RETURN (p3)
 ```
-
-
-
 
 
 ## WORD
@@ -240,44 +282,31 @@ Node labels
 Edge labels
  -[:SL]-> : is-Synset-Lemma-relationship
  -[:WS]-> : is-Word-Synset-relationship
- -[:A]-> : isAntonym
- -[:AS]-> : isAnotnymSynset
- -[:C]-> : isContainedIn
 
 Constraints on Edge Connectivity
  (:S)-[:SL]->(:L)
  (:W)-[:WS]->(:S)
- (:L)-[:A]->(:L)
- (:S)-[:AS]->(:S)
- (:W)-[:C]->(:L)
 ```            
 ### View definition
-For a chosen set of synsets, generate antonym synsets based on the antonym relationships of the words they contain. Add direct edges from words to lemmas that are connected through a synset.
 ```
-CREATE VIEW word_view AS (
- CONSTRUCT (s1)-[e4:AS]->(s2)
- MATCH (s1:S)-[e1:SL]->(l1:L), (s2:S)-[e2:SL]->(l2:L), (l1)-[e3:A]->(l2)
- FROM word
- WHERE s1 < 3000
-  UNION
- CONSTRUCT (w)-[e3:C]->(l)
- MATCH (w:W)-[e1:WS]->(s:S), (s)-[e2:SL]->(l:L)
- FROM word
- WHERE w < 7000 AND w > 3000
+CREATE VIEW v1 ON g WITH DEFAULT MAP (
+  MATCH (w:W)-[ws:WS]->(s:S)
+  CONSTRUCT (m:MS)
+  MAP FROM w, s TO m
+  SET m = SK(\"ff\", s)
+  DELETE ws
 )
 ```
 ### Query Workload
-For a particular set of words and synsets, retrieve edges that were newly created in the graph view.
 ```
-// WORD-Q1 
-MATCH (w:W)-[e:C]->(l:L)
-FROM word_view
-WHERE w > 5000 AND w < 6000
-RETURN e
 
-// WORD-Q2
-MATCH (s1:S)-[e:AS]->(s2:S)
-FROM word_view
-WHERE s1 > 2800 AND s1 < 3000
-RETURN e
+MATCH (m:MS)-[sl:SL]->(l:L) 
+FROM v1 
+WHERE l < 100 
+RETURN (l)
+
+MATCH (m:MS)-[sl:SL]->(l:L) 
+FROM v1 
+WHERE l < 150 
+RETURN (l)
 ```
