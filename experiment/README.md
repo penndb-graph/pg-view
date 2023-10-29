@@ -25,7 +25,8 @@ From: https://snap.stanford.edu/data/bigdata/wikipedia08/enwiki-20080103.wikiped
 #### OAG dataset
 > experiment/dataset/sources/oag/
 
-TBD
+From: https://drive.google.com/file/d/1Nk4jD-SXajhD0hrnIsPfi3zI__jug6A7
+
 
 #### LSQB dataset
 > experiment/dataset/sources/lsqb/*.csv
