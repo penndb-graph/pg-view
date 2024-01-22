@@ -1,17 +1,6 @@
-# Implementing Views for Property Graph Transformations
+# Benchmark Datasets and Workloads
 
 This document describes the graph datasets, as well as the view and query workloads used in the experiment.
-
-## Graph Datasets
-Our experiment includes five graph datasets from a variety of domains. Refer to [this page](../experiment/README.md) to download and prepare the dataset required for experiment.
-
-| Abbreviation  | Name        | Type  | \|N\| | \|E\| |
-| ------------- |-------------| ----- | ----- | ----- |
-| LSQB | Labelled Subgraph Query Benchmark | Syntactic (social) | 3.96M | 22.20M |
-| OAG | Open Aacademic Graph | Citation | 18.62M | 22.93M | 
-| PROV | Wikipedia Edits | Provenance | 5.15M | 2.65M | 
-| SOC | Twitter | Social | 713K | 405K | 
-| WORD | WordNet | Knowledge | 823K | 472K | 
 
 ## Workload Description
 View definitions contain:
@@ -22,9 +11,6 @@ View definitions contain:
   
 Queries contain:
 * Retrieve a node or edge pattern or a graph pattern
-* project tuples using the WHERE clause over properties
-
-
 
 
 ## LSQB
@@ -32,13 +18,12 @@ Queries contain:
 * Description: A benchmark for subgraph matching.
 * Source: [LSQB](https://github.com/ldbc/lsqb)
 
-#### Preprocessing
-
 #### Schema
 * Refer to the LSQB paper [[Link]](https://dl.acm.org/doi/pdf/10.1145/3461837.3464516).
 
 ### View definition
 ```
+// V1
 CREATE VIEW v1 ON g (
   MATCH
     (person1:Person)-[e1:KNOWS]->(person2:Person), 
@@ -52,6 +37,7 @@ CREATE VIEW v1 ON g (
     (comment:Comment)-[e4:REPLYOF]->(post:Post),
     (post:Post)-[e5:HASCREATOR]->(person2:Person)
 
+// V2
 CREATE VIEW v2 ON g (
   MATCH
     (person1:Person)-[e1:ISLOCATEDIN]->(city1:City),
@@ -78,6 +64,7 @@ CREATE VIEW v2 ON g (
 
 ### Query Workload
 ```
+// Q1
 MATCH 
   (person1:Person)-[e1:KNOWS]->(person2:Person), 
   (comment:Comment)-[e3:HASCREATOR]->(person1:Person), 
@@ -87,6 +74,7 @@ FROM v1
 WHERE person1 >= 1159373 AND person1 <= 1159400
 RETURN (person1)
 
+// Q2
 MATCH 
   (person1:Person)-[e1:ISLOCATEDIN]->(city1:City),
   (city1:City)-[e2:ISPARTOF]->(country:Country),
@@ -101,78 +89,12 @@ WHERE person1 >= 1159373 AND person1 <= 1159380
 RETURN (person1)
 ```
 
-## OAG
-### Description of Dataset
-* Description: Open Academic Graph (OAG) is a large knowledge graph unifying two graphs: Microsoft Academic Graph (MAG) and AMiner.
-* Source: [Open Academic Graph](https://www.microsoft.com/en-us/research/project/open-academic-graph/)
-#### Preprocessing
-* Select the papers published in 2016 only.
-#### Schema
-```
-Node labels
- (:AA) : AMiner Author
- (:AP) : AMiner Paper
- (:AV) : AMiner Venue
- (:MA) : MAG Author
- (:MP) : MAG Paper
- (:MV) : MAG Venue
- (:OA) : OAG Author (not exist in the input graph)
- (:OP) : OAG Paper (not exist in the input graph)
- (:OV) : OAG Venue (not exist in the input graph)
-
-Edge labels
- -[:W]-> : isWrittenBy
- -[:P]-> : isPublishedAt
- -[:L]-> : isLinkedTo
-
-Constraints on Edge Connectivity
- (:AP)-[:W]->(:AA)
- (:AP)-[:P]->(:AV)
- (:MP)-[:W]->(:MA)
- (:MP)-[:P]->(:MV)
- (:OP)-[:W]->(:OA)
- (:OP)-[:P]->(:OV)
- (:AA)-[:L]->(:MA)
- (:AP)-[:L]->(:MP)
- (:AV)-[:L]->(:MV)
-```            
-### View definition
-For every author connected between the two graph sets (AMiner and MAG), generate a new node.
-```
-CREATE VIEW v1 ON g WITH DEFAULT MAP (
-  MATCH (p:P)-[e1:W]->(a:A), (p:P)-[e2:P]->(v:V)
-  WHERE a > 2575 AND a < 2590
-  CONSTRUCT (a:A)-[e3:PUBVEN]->(v:V)
-  SET e3 = SK(\"kk1\", a, v)
-      UNION
-  MATCH (p:P)-[e1:W]->(a1:A), (p:P)-[e2:W]->(a2:A)
-  WHERE a1 < 10 AND a2 < 7000 AND a1 != a2
-  CONSTRUCT (a1:A)-[e3:COAUTHOR]->(a2:A)
-  SET e3 = SK(\"kk2\", a1, a2)
-)
-```
-### Query Workload
-Retrieve a set of nodes that were newly created in the view.
-```
-MATCH (a:A)-[e3:PUBVEN]->(v:V) 
-FROM v1 
-WHERE a > 2580 AND a < 2587
-RETURN (a)
-
-MATCH (a:A)-[e3:PUBVEN]->(v:V) 
-FROM v1 
-WHERE a > 2580 AND a < 2588 
-RETURN (a)
-```
-
-
 
 ## PROV
 ### Description of Dataset
 * Description: Talk namespace - edits of discussion pages attached to each Wikipedia article
 * Source: [Complete Wikipedia edit history (up to January 2008)](https://snap.stanford.edu/data/wiki-meta.html) (File: enwiki-20080103.talk.bz2)
-#### Preprocessing
-* Transform the revision history into a provenance graph that follows the W3C PROV-DM standard.
+
 #### Schema
 ```
 Node labels
@@ -193,39 +115,117 @@ Constraints on Edge Connectivity
 
 ### View definition
 ```
-CREATE VIEW prov1 ON g WITH DEFAULT MAP (
-  MATCH (e2:E)-[d:DERBY]->(e1:E), !(e1:E)-[k2:DERBY]->(_:E)
-  WHERE e1 < 30
-  CONSTRUCT (a:REVISION)-[u:USED]->(e1:E), (e2:E)-[g:GENBY]->(a:REVISION)
-  SET a = SK(\"rev\", d), u = SK(\"used\", d), g = SK(\"genby\", d)
-      UNION
-  MATCH (e2:E)-[d1:DERBY]->(e1:E), (e3:E)-[d2:DERBY]->(e2:E)
-  WHERE e1 > 100 AND e1 < 130
-  CONSTRUCT (e3:E)-[u:MULTIDERBY2]->(e1:E)
-  SET u = SK(\"multi\", e1, e3)
+// V3
+CREATE VIEW v3 ON g WITH DEFAULT MAP (
+ MATCH (e2:E)-[d:DERBY]->(e1:E)
+ WHERE e1 < 1000
+ CONSTRUCT (a:REVISION)-[u:USED]->(e1:E), (e2:E)-[g:GENBY]->(a:REVISION)
+ SET a = SK(\"rev\", d), u = SK(\"used\", d), g = SK(\"genby\", d)
+  UNION
+ MATCH (e2:E)-[d1:DERBY]->(e1:E), (e3:E)-[d2:DERBY]->(e2:E)
+ WHERE e1 < 1000
+ CONSTRUCT (e3:E)-[u:MULTIDERBY2]->(e1:E)
+ SET u = SK(\"multi\", e1, e3)
 )
 ```
-
 ### Query Workload
-For a particular set of revision entities, retrieve nodes or edges that have an 'isAttributedTo' relationship originating from them
 ```
-MATCH (a:REVISION)-[u:USED]->(e1:E), (e2:E)-[g:GENBY]->(a:REVISION)
-  FROM prov1
-  WHERE e1 < 501
-  RETURN (a)
+// Q3
+MATCH (a:REVISION)-[u:USED]->(e1:E), (e2:E)-[g:GENBY]->(a:REVISION), (e2:E)-[e3:DERBY]->(e1:E)
+FROM v3
+WHERE e1 < 1000
+RETURN (a),(u),(e1),(e2),(g),(e3)
 
+// Q4
 MATCH (e2:E)-[u:MULTIDERBY2]->(e1:E)
-  FROM prov1
-  WHERE e1 < 500
-  RETURN (e1)
+FROM v3
+WHERE e1 < 1000
+RETURN (e1),(e2),(u)
+
+// Q5
+MATCH (e2:E)-[u1:MULTIDERBY2]->(e1:E), (e3:E)-[u2:MULTIDERBY2]->(e2:E)
+FROM v3
+WHERE e1 < 1000
+RETURN (e1),(e3),(u1),(u2),(e2)
+
+// Q6
+MATCH (a:REVISION)-[u:USED]->(e1:E), (e2:E)-[g:GENBY]->(a:REVISION), (e2:E)-[e4:DERBY]->(e1:E), (e3:E)-[m2:MULTIDERBY2]->(e2:E)
+FROM v3
+WHERE e1 < 1000
+RETURN (a),(u),(e1),(e2),(g),(e4),(m2)
 ```
 
+
+## OAG
+### Description of Dataset
+* Description: Open Academic Graph (OAG) is a large knowledge graph unifying two graphs: Microsoft Academic Graph (MAG) and AMiner.
+* Source: [Open Academic Graph](https://www.microsoft.com/en-us/research/project/open-academic-graph/)
+#### Preprocessing
+* Select the papers published in 2016 only.
+#### Schema
+```
+Node labels
+ (:A) : Author
+ (:P) : Paper
+ (:V) : Venue
+
+Edge labels
+ -[:W]-> : isWrittenBy
+ -[:P]-> : isPublishedAt
+ -[:L]-> : isLinkedTo
+
+Constraints on Edge Connectivity
+ (:P)-[:W]->(:A)
+ (:P)-[:P]->(:V)
+ (:P)-[:L]->(:P)
+ (:A)-[:L]->(:A)
+ (:V)-[:L]->(:V)
+ ```            
+### View definition
+```
+// V4
+CREATE VIEW v4 ON g WITH DEFAULT MAP (
+ MATCH (p:P)-[e1:W]->(a:A), (p:P)-[e2:P]->(v:V)
+ WHERE p < 12353000
+ CONSTRUCT (a:A)-[e3:PUBVEN]->(v:V)
+ SET e3 = SK(\"kk1\", a, v)
+  UNION
+ MATCH (p:P)-[e1:W]->(a1:A), (p:P)-[e2:W]->(a2:A)
+ WHERE p < 12352800 AND a1 != a2
+ CONSTRUCT (a1:A)-[e3:COAUTHOR]->(a2:A)
+ SET e3 = SK(\"kk2\", a1, a2)
+)
+```
+### Query Workload
+```
+// Q7
+MATCH (a1:A)-[e:COAUTHOR]->(a2:A)
+FROM v4
+RETURN (a1), (a2)
+
+// Q8
+MATCH (a1:A)-[e1:COAUTHOR]->(a2:A), (p:P)-[e2:W]->(a1:A), (p:P)-[e3:W]->(a2:A)
+FROM v4
+WHERE p < 12353000
+RETURN (a1),(a2),(p)
+
+// Q9
+MATCH (a:A)-[e:PUBVEN]->(v:V)
+FROM v4
+WHERE a < 12
+RETURN (a), (v)
+
+// Q10
+MATCH (a1:A)-[e1:COAUTHOR]->(a2:A), (p:P)-[e2:W]->(a1:A), (p:P)-[e3:W]->(a2:A), (a2:A)-[e4:PUBVEN]->(v:V)
+FROM v4
+WHERE p < 12353000
+RETURN (a1),(a2),(v)
+```
 
 
 ## SOC
 ### Description of Dataset
 * Source: [TWITTER-FOLLOWS](https://networkrepository.com/soc-twitter-follows.php)
-#### Preprocessing
 #### Schema
 ```
 Node labels
@@ -238,32 +238,56 @@ Constraints on Edge Connectivity
  (:U)-[:F]->(:U)
 ```
 ### View definition
-For a selected group of users, create edges that represent two and three-hop relationships originating from them. 
 ```
-CREATE VIEW v1 ON g WITH DEFAULT MAP (
-  MATCH (p1:U)-[f1:F]->(p2:U), (p2)-[f2:F]->(p3:U), !(p1)-[f3:F]->(p3)
-  WHERE p1 != p3 AND p1 < 100000
-  CONSTRUCT (p1:U)-[r:R]->(p3:U)
-  SET r = SK(\"rr\", p1, p3)
-)
-
-CREATE VIEW v2 ON v1 WITH DEFAULT MAP (
-  MATCH (p1:U)
-  WHERE p1 < 501
-  DELETE p1
+// V5
+CREATE VIEW v5 ON g WITH DEFAULT MAP (
+ MATCH (u1:U)-[f1:F]->(u2:U), (u2)-[f2:F]->(u3:U), !(u1)-[f3:F]->(u3)
+ WHERE u1 != u3 AND u2 < 10000
+ CONSTRUCT (u1:U)-[r:R2A]->(u3:U)
+ SET r = SK(\"ra\", u1, u3)
+  UNION
+ MATCH (u1:U)-[f1:F]->(u2:U), (u2)-[f2:F]->(u3:U), !(u1)-[f3:F]->(u3)
+ WHERE u1 != u3 AND u2 < 10000
+ CONSTRUCT (u1:U)-[r:R2B]->(u3:U)
+ SET r = SK(\"rb\", u1, u3)
+  UNION                        
+ MATCH (u1:U)-[f1:F]->(u2:U), (u2)-[f2:F]->(u3:U), (u3)-[f3:F]->(u4:U), !(u1)-[f4:F]->(u4)
+ WHERE u1 != u4 AND u2 < 20000
+ CONSTRUCT (u1:U)-[r:R3A]->(u4:U)
+ SET r = SK(\"rc\", u1, u4)
+  UNION
+ MATCH (u1:U)-[f1:F]->(u2:U), (u2)-[f2:F]->(u3:U), (u3)-[f3:F]->(u4:U), !(u1)-[f4:F]->(u4)
+ WHERE u1 != u4 AND u2 < 20000
+ CONSTRUCT (u1:U)-[r:R3B]->(u4:U)
+ SET r = SK(\"rd\", u1, u4)
 )
 ```
 ### Query Workload
-For a specific group of users, return those who have a 2-hop or 3-hop relationship originating from them.
 ```
-MATCH (p1:U)-[r:R]->(p2:U) 
-  FROM v2
-  WHERE p1 < 5000 
-  RETURN (p2)
+// Q11
+MATCH (u1:U)-[r:R2A]->(u2:U)
+FROM v5
+WHERE u1 < 2000
+RETURN (u2)
 
-MATCH (p1:U)-[r1:R]->(p2:U), (p2)-[r2:R]->(p3:U), (p1)-[r3:F]->(p3)
-  FROM v2 
-  WHERE p1 < 30000 AND p1 != p3 RETURN (p3)
+// Q12
+MATCH (u1:U)-[r1:R3A]->(u2:U), (u1:U)-[r2:R3A]->(u3:U)
+FROM v5
+WHERE u1 < 5000 AND u2 != u3
+RETURN (u2), (u3)
+
+// Q13
+MATCH (u1:U)-[r1:R2A]->(u2:U), (u2:U)-[r2:R2B]->(u3:U)
+FROM v5
+WHERE u1 < 5000
+RETURN (u1), (u3)
+
+// Q14
+MATCH (u1:U)-[r1:R2A]->(u2:U), (u2:U)-[r2:R2B]->(u3:U),
+(u4:U)-[r3:R3A]->(u2:U), (u2:U)-[r4:R3B]->(u5:U)
+FROM v5
+WHERE u1 < 20000 AND u1 != u4 AND u3 != u5
+RETURN (u1), (u3)
 ```
 
 
@@ -289,24 +313,40 @@ Constraints on Edge Connectivity
 ```            
 ### View definition
 ```
-CREATE VIEW v1 ON g WITH DEFAULT MAP (
-  MATCH (w:W)-[ws:WS]->(s:S)
-  CONSTRUCT (m:MS)
-  MAP FROM w, s TO m
-  SET m = SK(\"ff\", s)
-  DELETE ws
+// V6
+CREATE VIEW v6 ON g WITH DEFAULT MAP (
+ MATCH (w:W)-[ws:WS]->(s:S), (s:S)-[sl:SL]->(l:L)
+ WHERE w < 5000
+ CONSTRUCT (m:MS)
+ SET m = SK(\"ff\", w, s)
+ MAP FROM w, s TO m
+ // DELETE ws
+  UNION
+ MATCH (w:W)-[ws:WS]->(s:S), (s:S)-[sl:SL]->(l:L)
+ WHERE w > 5000 AND w < 30000
+ CONSTRUCT (w:W)-[wl:WL]->(l:L)
+ SET wl = SK(\"ss\", w, l)
 )
 ```
 ### Query Workload
 ```
+// Q15
+MATCH (m:MS)
+FROM v6
+RETURN (m)
 
-MATCH (m:MS)-[sl:SL]->(l:L) 
-FROM v1 
-WHERE l < 100 
-RETURN (l)
+// Q16
+MATCH (m:MS)-[sl:SL]->(l:L), (m:MS)-[ws:WS]->(m:MS)
+FROM v6
+RETURN (m), (sl), (ws), (l)
 
-MATCH (m:MS)-[sl:SL]->(l:L) 
-FROM v1 
-WHERE l < 150 
-RETURN (l)
+// Q17
+MATCH (w:W)-[wl:WL]->(l:L)
+FROM v6
+RETURN (w),(wl),(l)
+
+// Q18
+MATCH (m:MS)-[sl:SL]->(l:L), (m:MS)-[ws:WS]->(m:MS), (w:W)-[wl:WL]->(l:L)
+FROM v6
+RETURN (m),(sl),(l),(ws),(wl),(w)
 ```
