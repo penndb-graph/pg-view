@@ -1,6 +1,7 @@
 # PGVIEW: Implementation Strategies for Views over Property Graphs
 
  * This repository includes the codes and datasets for PGVIEW. Paper Link: [TBD].
+ * For a detailed description of the datasets, workloads, views, and queries used in the experiment, please refer to [this page](docs/workload.md).
 
 ## Installation 
 
@@ -45,7 +46,7 @@ Querying
 
  * Refer to [this page](docs/datasets.md) for downloading and preparing the necessary dataset for the experiment.
 
- * For a detailed description of the datasets, workloads, views, and queries used in the experiment, please refer to [this page](docs/workload.md).
+ * Refer to [this page](docs/workload.md) for the description of benchmark workloads.
 
 ### Experiment Executor
  * This describes how to reproduce our experiments.
